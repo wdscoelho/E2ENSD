@@ -4,7 +4,7 @@ In this work, we model the 5G network slice provisioning as an optimization prob
 
 The code-source is written in Julia-JuMP lenguage for Jupyter environment. You will find below de version of each library used in this work.
 
-JULIA 1.2
+JULIA v1.2.0
 
 
    CPLEX v0.5.0
