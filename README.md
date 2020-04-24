@@ -2,7 +2,7 @@
 
 In this work, we model the 5G network slice provisioning as an optimization problem including novel mapping and provisioning requirements raising with new 5G radio and core function placement policies. The model, in particular, encompasses dynamic functional splitting, with possibly different splitting for different slices, taking into different network sharing policies from 5G specifications.
 
-The code-source is written in Julia-JuMP lenguage for Jupyter environment. You will find below de version of each library used in this work.
+The code-source is written in Julia-JuMP language for Jupyter environment. You will find below de version of each library used in this work.
 
 JULIA v1.2.0
 
