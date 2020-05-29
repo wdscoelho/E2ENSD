@@ -1,0 +1,3 @@
+set_VNF_to_install "instance_3"
+number_of_VNFs_to_install 13
+1 1 1 1 1 1 1 1 1 0 1 1 1 

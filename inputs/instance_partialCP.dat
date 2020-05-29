@@ -1,0 +1,9 @@
+number_of_requests 4
+
+slice_request 1 id 1 set_micro_area "micro_area_instance_1.dat" allowed_RATs "set_RAT_1.dat" total_amount_of_UE 4800 min_bandwidth 300.0 min_availability 0.999 VNF_types_to_install "set_VNF_to_install_instance_1.dat" VNFs_to_connect "VNFs_To_Connect_1.dat" VNF_sharing "../inputs/partialCP.dat" commodities "../inputs/commodities_1.dat" maxLatencyDataLayer 10.00 nodeSharing "../inputs/node_sharing_YES.dat" slice_cont "../inputs/slice_cont_1.dat"
+
+slice_request 2 id 2 set_micro_area "micro_area_instance_1.dat" allowed_RATs "set_RAT_1.dat" total_amount_of_UE 4800 min_bandwidth 10.0 min_availability 0.999 VNF_types_to_install "set_VNF_to_install_instance_2.dat" VNFs_to_connect "VNFs_To_Connect_1.dat" VNF_sharing "../inputs/partialCP.dat" commodities "../inputs/commodities_2.dat" maxLatencyDataLayer 10.00 nodeSharing "../inputs/node_sharing_YES.dat" slice_cont "../inputs/slice_cont_1.dat"
+
+slice_request 3 id 3 set_micro_area "micro_area_instance_1.dat" allowed_RATs "set_RAT_1.dat" total_amount_of_UE 1440 min_bandwidth 25.0 min_availability 0.999 VNF_types_to_install "set_VNF_to_install_instance_3.dat" VNFs_to_connect "VNFs_To_Connect_1.dat" VNF_sharing "../inputs/partialCP.dat" commodities "../inputs/commodities_3.dat" maxLatencyDataLayer 1.00 nodeSharing "../inputs/node_sharing_YES.dat" slice_cont "../inputs/slice_cont_1.dat"
+
+slice_request 4 id 4 set_micro_area "micro_area_instance_1.dat" allowed_RATs "set_RAT_1.dat" total_amount_of_UE 480 min_bandwidth 200.0 min_availability 0.999 VNF_types_to_install "set_VNF_to_install_instance_4.dat" VNFs_to_connect "VNFs_To_Connect_1.dat" VNF_sharing "../inputs/partialCP.dat" commodities "../inputs/commodities_4.dat" maxLatencyDataLayer 100.0 nodeSharing "../inputs/node_sharing_YES.dat" slice_cont "../inputs/slice_cont_1.dat"
