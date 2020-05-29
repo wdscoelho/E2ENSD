@@ -1,4 +1,4 @@
-# E2ENSD : modeling and optimization
+# Network Slice Design : modeling and optimization
 
 In this work, we model the 5G network slice provisioning as an optimization problem including novel mapping and provisioning requirements raising with new 5G radio and core function placement policies. The model, in particular, encompasses dynamic functional splitting, with possibly different splitting for different slices, taking into different network sharing policies from 5G specifications.
 
