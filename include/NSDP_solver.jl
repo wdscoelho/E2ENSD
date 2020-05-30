@@ -9,7 +9,7 @@ function get_model_info(instance::Instance,my_model::Model)
 end
 
 function create_NSDP_model(instance::Instance, split_::String)
-    my_model = Model(solver=CplexSolver(CPX_PARAM_TILIM=60*60*1.5,CPX_PARAM_THREADS=5))
+    my_model = Model(solver=CplexSolver())
 
     #-------------------------Variables--------------------
     @variable(my_model, z[s in 1:length(instance.setSlices),f in 1:instance.number_of_AN_based_NFs],Bin)
