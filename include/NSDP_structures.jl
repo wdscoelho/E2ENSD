@@ -3,7 +3,7 @@
 #
 # Thesis title: Modeling and Optimization for 5G Network Design
 # Ph.D. student: Wesley DA SILVA COELHO
-# Thesis Director : Stefano SECCI (Conservatoire National des Arts et Métiers - CEDRIC)
+# Thesis Director : Stefano SECCI (Conservatoire National des Arts et MÃ©tiers - CEDRIC)
 # Thesis Supervisors : Amal BENHAMICHE and Nancy PERROT (Orange Labs)
 #
 ################################################################################
