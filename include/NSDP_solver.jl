@@ -495,7 +495,7 @@ function get_solution(my_model::Model, instance::Instance,folder::String,split_:
     ppa = 0.0
     ver = 0.0
     
-        for a in edges(instance.physical_network) 
+    for a in edges(instance.physical_network) 
         edge_id = get_prop(instance.physical_network,a,:edge_id)
         charge_arc[edge_id] = 0.0
         total_arc_capacity+= get_prop(instance.physical_network,a,:max_bandwidth)
@@ -504,7 +504,7 @@ function get_solution(my_model::Model, instance::Instance,folder::String,split_:
 
             charge_arc[edge_id] += sol_gamma[s,k,edge_id,length(instance.set_VNFs)+1,1]*instance.setSlices[s].set_commodities[k]["volume_of_data"]
 
-            charge_arc[edge_id] += sol_gamma[s,k,edge_id,length(instance.set_VNFs),length(instance.set_VNFs)+1]*instance.setSlices[s].set_commodities[k]["volume_of_data"]*instance.set_VNFs[instance.number_of_AN_based_NFs].compression
+            charge_arc[edge_id] += sol_gamma[s,k,edge_id,instance.number_of_AN_based_NFs,length(instance.set_VNFs)+1]*instance.setSlices[s].set_commodities[k]["volume_of_data"]*instance.set_VNFs[instance.number_of_AN_based_NFs].compression
 
             for f in 1:(instance.number_of_AN_based_NFs+instance.number_of_CN_based_NFs), g in 1:(instance.number_of_AN_based_NFs +instance.number_of_AN_based_NFs)
                 if f!=g 
