@@ -44,8 +44,8 @@ sharing_policies = ["flatSharing","hard","sharedCP","sharedDP","partialCP","part
 split_settings = [1,2,3,4,5,6,7] 
 
 
-creating files and their headres to store the final solutions
-see the header (on write function) to know the information on each file 
+#creating files and their headres to store the final solutions
+#see the header (on write function) to know the information on each file 
 open(joinpath(result_folder,"load_on_nodes.csv"), "w") do finalNodeLoad
     write(finalNodeLoad,"topology;OF;test;nodeID;type;sharing_policy;split_setting;load\n")
 end
@@ -59,6 +59,7 @@ open(joinpath(result_folder,"final_statistics.csv"), "w") do finalStatistics
 end
 
 
+#------------------- TESTS ---------------------------------
 my_instance = 0
 OFs = ["minNFS"]
 variants = ["NDSP"]
