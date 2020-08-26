@@ -16,22 +16,16 @@ function create_NSDP_variants_model(instance::Instance, varia::String,objf::Stri
     @variable(my_model, w[s in 1:length(instance.setSlices),f in 1:length(instance.set_VNFs), m in 1:instance.number_of_NFs, u in 1: props(instance.physical_network)[:number_nodes]] >= 0)
     @variable(my_model, y[f in 1:length(instance.set_VNFs), m in 1:instance.number_of_NFs, u in 1: props(instance.physical_network)[:number_nodes]] >=0, Int)
     @variable(my_model, gamma[s in 1:length(instance.setSlices), k in 1:length(instance.setSlices[s].set_commodities), a in 1: props(instance.physical_network)[:number_of_arcs],f in 1:length(instance.set_VNFs)+1, g in 1:length(instance.set_VNFs)+1], Bin)
-   
+    if objf!= "minNFS"                                
+        @variable(my_model, 0 <= U <= 1)
+    end
     
-    for n in 2:(instance.number_of_NFs),s in 1:length(instance.setSlices),f in 1:length(instance.set_VNFs), u in 1: props(instance.physical_network)[:number_nodes]
-        @constraint(my_model, x[s,f,n,u] <=sum(x[t,g,n-1,v] for t in 1:length(instance.setSlices),g in 1:length(instance.set_VNFs), v in 1: props(instance.physical_network)[:number_nodes]))  
-    end 
-    
-    
-    #-----------------Additional Constraints-----------------
-    # additional proposed split where all data-plane NFS are installed locally.
-    if split_ == "option_1"
-        for s in 1:length(instance.setSlices)
-            @constraint(my_model, z[s,5]==0)
-        end
-        
-        
-    
+    #---------------------------------------------
+    # SPLIT SELECTION
+    #---------------------------------------------
+    for s in 1:length(instance.setSlices),  f in 1:(instance.number_of_AN_based_NFs-1)
+        @constraint(my_model, z[s,f]<=z[s,f+1])
+    end
     #additional proposed split where only the NFS5 is installed at the CU. This split simulates a scenario where all RAN NFSs are installed locally while 
     #the data-plane NFs from core network are installed centrally
     elseif split_ == "option_2"
@@ -67,16 +61,14 @@ function create_NSDP_variants_model(instance::Instance, varia::String,objf::Stri
              @constraint(my_model, z[s,1]==1)
         end         
     end
-   
-    
-#---------------------------------------------
-    # SPLIT SELECTION
-    #---------------------------------------------
-    for s in 1:length(instance.setSlices),  f in 1:(instance.number_of_AN_based_NFs-1)
-        @constraint(my_model, z[s,f]<=z[s,f+1])
-    end
-    
-   
+
+   if varia == "NSDP-ISSC"                                    
+       for s  in 1:length(instance.setSlices)-1,t in s+1:length(instance.setSlices), f in 1:instance.number_of_AN_based_NFs                
+            if instance.setSlices[s].set_commodities[1]["origin_node"] == instance.setSlices[t].set_commodities[1]["origin_node"]
+                @constraint(my_model, z[s,f] - z[t,f] ==0) 
+            end                                        
+        end 
+    end  
     #---------------------------------------------
     # DIMENSIONING - CP NFSs
     #---------------------------------------------
@@ -114,7 +106,7 @@ function create_NSDP_variants_model(instance::Instance, varia::String,objf::Stri
              push!(O,k["origin_node"])                            
         end
         for f in 1:instance.number_of_AN_based_NFs,  u in 1: props(instance.physical_network)[:number_nodes]
-            if u âˆˆ O 
+            if u ∈ O 
                 @constraint(my_model, sum(x[s,f,m,u] for m in 1:instance.number_of_NFs)== instance.setSlices[s].set_VNFs_to_install[f]*(1 - z[s,f]))
             elseif props(instance.physical_network, u)[:node_type] == "access"
                 @constraint(my_model, sum(x[s,f,m,u] for m in 1:instance.number_of_NFs)== 0)
@@ -155,18 +147,58 @@ function create_NSDP_variants_model(instance::Instance, varia::String,objf::Stri
         @constraint(my_model, expression2 ==0) 
 
      end
+   if varia != "NSDP"                                    
+       for s  in 1:length(instance.setSlices)-1,t in s+1:length(instance.setSlices), f in (1+instance.number_of_AN_based_NFs):(instance.number_of_AN_based_NFs + instance.number_of_CN_based_NFs),n in 1:instance.number_of_NFs, u in 1:props(instance.physical_network)[:number_nodes]                  
+            if instance.slice_beta[s][t] >= 0.9
+                @constraint(my_model, x[s,f,n,u] - x[t,f,n,u] == 0) 
+            end                                        
+        end 
+    end
 
-
-    
+               
     #---------------------------------------------
     # VIRTUAL ISOLATION
     #---------------------------------------------
-    for s in 1:length(instance.setSlices),t in 1:length(instance.setSlices)
-        if  s!=t
-            for u in 1: props(instance.physical_network)[:number_nodes],  m in 1:instance.number_of_NFs,  f in 1:length(instance.set_VNFs),g in 1:length(instance.set_VNFs)            
-                @constraint(my_model, x[s,f,m,u] + x[t,g,m,u]  <= 1 + instance.setSlices[s].VNF_sharing["$(t)"][f][g]*instance.setSlices[t].VNF_sharing["$(s)"][g][f])  
-             end
+    sharing_policies = ["hard","flat","sharedCP","sharedDP","partialCP","partialDP"]
+    sharing_policies = ["flat","sharedCP","sharedDP"]
+        if varia == "NSDP"                                    
+        for s in 1:length(instance.setSlices)-1,t in s+1:length(instance.setSlices)
+            policy = rand(sharing_policies)                
+            if policy != "flat"
+                for u in 1: props(instance.physical_network)[:number_nodes],  m in 1:instance.number_of_NFs,  f in 1:length(instance.set_VNFs),g in 1:length(instance.set_VNFs)            
+                     if policy == "hard" 
+                        @constraint(my_model, x[s,f,m,u] + x[t,g,m,u]  <= 1) 
+                    elseif policy == "sharedCP" && f <= instance.number_of_AN_based_NFs
+                        @constraint(my_model, x[s,f,m,u] + x[t,g,m,u]  <= 1)  
+                    elseif policy == "sharedDP" && f > instance.number_of_AN_based_NFs
+                        @constraint(my_model, x[s,f,m,u] + x[t,g,m,u]  <= 1)
+                    elseif (policy == "partialCP" && f <= instance.number_of_AN_based_NFs) || (policy == "partialCP" && f > 9) 
+                        @constraint(my_model, x[s,f,m,u] + x[t,g,m,u]  <= 1)
+                    elseif policy == "partialDP" && f > 3
+                        @constraint(my_model, x[s,f,m,u] + x[t,g,m,u]  <= 1)                              
+                    end
+                end
+            end                   
         end
+    else                                  
+        for s in 1:length(instance.setSlices)-1,t in s+1:length(instance.setSlices)
+            policy = rand(sharing_policies)                
+            if policy != "flat" && instance.slice_beta[s][t] == 0
+                for u in 1: props(instance.physical_network)[:number_nodes],  m in 1:instance.number_of_NFs,  f in 1:length(instance.set_VNFs),g in 1:length(instance.set_VNFs)            
+                     if policy == "hard" 
+                        @constraint(my_model, x[s,f,m,u] + x[t,g,m,u]  <= 1) 
+                    elseif policy == "sharedCP" && f <= instance.number_of_AN_based_NFs
+                        @constraint(my_model, x[s,f,m,u] + x[t,g,m,u]  <= 1)  
+                    elseif policy == "sharedDP" && f > instance.number_of_AN_based_NFs
+                        @constraint(my_model, x[s,f,m,u] + x[t,g,m,u]  <= 1)
+                    elseif (policy == "partialCP" && f <= instance.number_of_AN_based_NFs) || (policy == "partialCP" && f > 9) 
+                        @constraint(my_model, x[s,f,m,u] + x[t,g,m,u]  <= 1)
+                    elseif policy == "partialDP" && f > 3
+                        @constraint(my_model, x[s,f,m,u] + x[t,g,m,u]  <= 1)                              
+                    end
+                end
+            end                   
+        end                                       
     end
 
     #---------------------------------------------
@@ -174,6 +206,9 @@ function create_NSDP_variants_model(instance::Instance, varia::String,objf::Stri
     #--------------------------------------------
     for f in 1:length(instance.set_VNFs), m in 1:instance.number_of_NFs, u in 1:props(instance.physical_network)[:number_nodes]
         @constraint(my_model, sum(w[s,f,m,u] for s in 1:length(instance.setSlices))  <= y[f,m,u])
+        if objf!= "minNFS"                                
+            @constraint(my_model, sum(w[s,f,m,u] for s in 1:length(instance.setSlices)) + 0.9999999 >= y[f,m,u])
+        end                                    
     end
 
       
@@ -184,10 +219,10 @@ function create_NSDP_variants_model(instance::Instance, varia::String,objf::Stri
         @constraint(my_model,  sum(instance.set_VNFs[f].cpu_request*y[f,m,u] for f in 1:length(instance.set_VNFs), m in 1:instance.number_of_NFs) <= props(instance.physical_network,u)[:cpu_capacity])
 
     end
-                 
-                      
-    
-    
+   
+ 
+                                        
+                                    
 #---------------------------------------------
     # FLOW - DP
     #---------------------------------------------
@@ -359,7 +394,7 @@ function create_NSDP_variants_model(instance::Instance, varia::String,objf::Stri
     end
 
 
-   
+
     #---------------------------------------------
     # LINK CAPACITY
                                                 
@@ -389,7 +424,6 @@ function create_NSDP_variants_model(instance::Instance, varia::String,objf::Stri
         if objf== "minNFS"                                
             @constraint(my_model, sum_gamma <= get_prop(instance.physical_network,a,:max_bandwidth))
         else                               
-            @variable(my_model, 0 <= U <= 1)
             @constraint(my_model, sum_gamma <= U*get_prop(instance.physical_network,a,:max_bandwidth))                      
         end
     end
