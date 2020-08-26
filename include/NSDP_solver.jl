@@ -1,31 +1,36 @@
 
 using JuMP,CPLEX,MathProgBase
 using NBInclude,GraphIO
-using LightGraphs, MetaGraphs
+using LightGraphs, MetaGraphs,LightGraphsFlows
 
 function get_model_info(instance::Instance,my_model::Model)
     println("Number of variables = $(MathProgBase.numvar(my_model))")
     println("Number of constraints = $(MathProgBase.numlinconstr(my_model))")
 end
 
-function create_NSDP_model(instance::Instance, split_::String)
+function create_NSDP_variants_model(instance::Instance, varia::String,objf::String, split_::String)
     my_model = Model(solver=CplexSolver())
 
-    #-------------------------Variables--------------------
     @variable(my_model, z[s in 1:length(instance.setSlices),f in 1:instance.number_of_AN_based_NFs],Bin)
     @variable(my_model, x[s in 1:length(instance.setSlices),f in 1:length(instance.set_VNFs), m in 1:instance.number_of_NFs, u in 1: props(instance.physical_network)[:number_nodes]], Bin)
     @variable(my_model, w[s in 1:length(instance.setSlices),f in 1:length(instance.set_VNFs), m in 1:instance.number_of_NFs, u in 1: props(instance.physical_network)[:number_nodes]] >= 0)
     @variable(my_model, y[f in 1:length(instance.set_VNFs), m in 1:instance.number_of_NFs, u in 1: props(instance.physical_network)[:number_nodes]] >=0, Int)
     @variable(my_model, gamma[s in 1:length(instance.setSlices), k in 1:length(instance.setSlices[s].set_commodities), a in 1: props(instance.physical_network)[:number_of_arcs],f in 1:length(instance.set_VNFs)+1, g in 1:length(instance.set_VNFs)+1], Bin)
    
-
-    #---------------------------------------------
+    
+    for n in 2:(instance.number_of_NFs),s in 1:length(instance.setSlices),f in 1:length(instance.set_VNFs), u in 1: props(instance.physical_network)[:number_nodes]
+        @constraint(my_model, x[s,f,n,u] <=sum(x[t,g,n-1,v] for t in 1:length(instance.setSlices),g in 1:length(instance.set_VNFs), v in 1: props(instance.physical_network)[:number_nodes]))  
+    end 
+    
+    
     #-----------------Additional Constraints-----------------
     # additional proposed split where all data-plane NFS are installed locally.
     if split_ == "option_1"
         for s in 1:length(instance.setSlices)
             @constraint(my_model, z[s,5]==0)
         end
+        
+        
     
     #additional proposed split where only the NFS5 is installed at the CU. This split simulates a scenario where all RAN NFSs are installed locally while 
     #the data-plane NFs from core network are installed centrally
@@ -62,8 +67,9 @@ function create_NSDP_model(instance::Instance, split_::String)
              @constraint(my_model, z[s,1]==1)
         end         
     end
+   
     
-    #---------------------------------------------
+#---------------------------------------------
     # SPLIT SELECTION
     #---------------------------------------------
     for s in 1:length(instance.setSlices),  f in 1:(instance.number_of_AN_based_NFs-1)
@@ -75,9 +81,7 @@ function create_NSDP_model(instance::Instance, split_::String)
     # DIMENSIONING - CP NFSs
     #---------------------------------------------
     for s in 1:length(instance.setSlices),  f in (instance.number_of_AN_based_NFs+1):(instance.number_of_CN_based_NFs+instance.number_of_AN_based_NFs),u in 1: props(instance.physical_network)[:number_nodes],n in 1:instance.number_of_NFs
-        if props(instance.physical_network, u)[:node_type] == "non_access"
-            @constraint(my_model, w[s,f,n,u]  == instance.set_VNFs[f].dataVolPerUE*instance.setSlices[s].TotalAmountUE*x[s,f,n,u] /instance.set_VNFs[f].treatment_capacity)
-        end
+        @constraint(my_model, w[s,f,n,u]  == instance.set_VNFs[f].dataVolPerUE*instance.setSlices[s].TotalAmountUE*x[s,f,n,u] /instance.set_VNFs[f].treatment_capacity)
     end 
     #---------------------------------------------
     # DIMENSIONING - DISTRIBUTED DP NFSs
@@ -100,28 +104,38 @@ function create_NSDP_model(instance::Instance, split_::String)
             @constraint(my_model, w[s,f,n,u] ==  instance.setSlices[s].set_VNFs_to_install[f]*(sum(k["volume_of_data"] for k in instance.setSlices[s].set_commodities)*x[s,f,n,u])/instance.set_VNFs[f].treatment_capacity)                
         end
     end
-
-                                                
+                                           
     #---------------------------------------------
     # PLACEMENT - DISTRIBUTED DP NFSs
     #---------------------------------------------
-    for s in 1:length(instance.setSlices),  f in 1:instance.number_of_AN_based_NFs, k in instance.setSlices[s].set_commodities
-          @constraint(my_model, sum(x[s,f,m,k["origin_node"]] for m in 1:instance.number_of_NFs)== instance.setSlices[s].set_VNFs_to_install[f]*(1 - z[s,f]))
+    for s in 1:length(instance.setSlices) 
+        O = Vector()   
+        for k in instance.setSlices[s].set_commodities
+             push!(O,k["origin_node"])                            
+        end
+        for f in 1:instance.number_of_AN_based_NFs,  u in 1: props(instance.physical_network)[:number_nodes]
+            if u âˆˆ O 
+                @constraint(my_model, sum(x[s,f,m,u] for m in 1:instance.number_of_NFs)== instance.setSlices[s].set_VNFs_to_install[f]*(1 - z[s,f]))
+            elseif props(instance.physical_network, u)[:node_type] == "access"
+                @constraint(my_model, sum(x[s,f,m,u] for m in 1:instance.number_of_NFs)== 0)
+            end
+        end
     end
             
   
     #---------------------------------------------
-    # PLACEMENT - CENTRALIZED DP NFSs
+    # PLACEMENT - CENTRALIZED DP NFSs      --------------
     #---------------------------------------------
      for s in 1:length(instance.setSlices),  f in 1:instance.number_of_AN_based_NFs
         expression = zero(AffExpr)
         for u in 1: props(instance.physical_network)[:number_nodes]
-            if  props(instance.physical_network, u)[:node_type] == "non_access"
-                expression+= sum(x[s,f,m,u] for m in 1:instance.number_of_NFs)
+            if props(instance.physical_network, u)[:node_type] != "access"
+                expression+= sum(x[s,f,m,u] for m in 1:instance.number_of_NFs)                           
             end
 
         end
-        @constraint(my_model, expression == instance.setSlices[s].set_VNFs_to_install[f]*z[s,f])            
+        @constraint(my_model, expression == instance.setSlices[s].set_VNFs_to_install[f]*z[s,f])  
+                               
     end
                 
     #---------------------------------------------
@@ -129,15 +143,19 @@ function create_NSDP_model(instance::Instance, split_::String)
     #---------------------------------------------
      for s in 1:length(instance.setSlices),  f in (1+instance.number_of_AN_based_NFs):(instance.number_of_AN_based_NFs + instance.number_of_CN_based_NFs)
         expression = zero(AffExpr)
+         expression2 = zero(AffExpr)                            
         for u in 1: props(instance.physical_network)[:number_nodes]
-        
-            if props(instance.physical_network,u)[:node_type]=="non_access"
+            if props(instance.physical_network, u)[:node_type] == "non_access"
                 expression+= sum(x[s,f,m,u] for m in 1:instance.number_of_NFs)
+            else
+                expression2+= sum(x[s,f,m,u] for m in 1:instance.number_of_NFs)
             end
-         end
-                
-        @constraint(my_model, expression == instance.setSlices[s].set_VNFs_to_install[f])            
+        end       
+        @constraint(my_model, expression == instance.setSlices[s].set_VNFs_to_install[f]) 
+        @constraint(my_model, expression2 ==0) 
+
      end
+
 
     
     #---------------------------------------------
@@ -154,72 +172,29 @@ function create_NSDP_model(instance::Instance, split_::String)
     #---------------------------------------------
     # PACKING
     #--------------------------------------------
-    for f in 1:length(instance.set_VNFs), m in 1:instance.number_of_NFs, u in 1: props(instance.physical_network)[:number_nodes]
+    for f in 1:length(instance.set_VNFs), m in 1:instance.number_of_NFs, u in 1:props(instance.physical_network)[:number_nodes]
         @constraint(my_model, sum(w[s,f,m,u] for s in 1:length(instance.setSlices))  <= y[f,m,u])
     end
-            
-    for s in 1:length(instance.setSlices),
-        t in 1:length(instance.setSlices),
-        f in 1:length(instance.set_VNFs), 
-        g in 1:length(instance.set_VNFs),
-        u in 1: props(instance.physical_network)[:number_nodes],
-        v in 1: props(instance.physical_network)[:number_nodes],
-        n in 1:instance.number_of_NFs
-       
-        if u!=v
-            @constraint(my_model, x[s,f,n,u] + x[t,g,n,v] <=1)
-        end
-        
-    end       
+
+      
     #---------------------------------------------
     # NODE CAPACITY
     #---------------------------------------------
     for u in 1: props(instance.physical_network)[:number_nodes]
         @constraint(my_model,  sum(instance.set_VNFs[f].cpu_request*y[f,m,u] for f in 1:length(instance.set_VNFs), m in 1:instance.number_of_NFs) <= props(instance.physical_network,u)[:cpu_capacity])
-     end
+
+    end
                  
                       
     
-    #---------------------------------------------
-    # FLOW - BETWEEN CENTRALIZED DP NFSs
+    
+#---------------------------------------------
+    # FLOW - DP
     #---------------------------------------------
     for s in 1:length(instance.setSlices), k in 1:length(instance.setSlices[s].set_commodities), f in 1:(instance.number_of_AN_based_NFs-1),u in 1: props(instance.physical_network)[:number_nodes]
             
-        if props(instance.physical_network, u)[:node_type] == "non_access"
-            ingoing = zero(AffExpr)
-            outgoing = zero(AffExpr)
-            conttt=0
-            for a in edges(instance.physical_network)
-                if src(a) == u
-                   outgoing+= gamma[s,k,get_prop(instance.physical_network,a,:edge_id),f,f+1]
-                end
-                if dst(a) == u
-                   ingoing+= gamma[s,k,get_prop(instance.physical_network,a,:edge_id),f,f+1] 
-                end
-            end
-                @constraint(my_model, outgoing - ingoing == sum(x[s,f,m,u] for m in 1:instance.number_of_NFs) -sum(x[s,f+1,m,u] for m in 1:instance.number_of_NFs))
-            
-        end    
-    end
-                
-    #---------------------------------------------
-    # FLOW - BETWEEN DP NFSs ON THE SPLIT
-    #---------------------------------------------
-    for s in 1:length(instance.setSlices), k in 1:length(instance.setSlices[s].set_commodities), f in 1:instance.number_of_AN_based_NFs-1
-        u=instance.setSlices[s].set_commodities[k]["origin_node"]
+        ingoing = zero(AffExpr)
         outgoing = zero(AffExpr)
-        for a in edges(instance.physical_network)
-            if src(a) == u
-               outgoing+= gamma[s,k,get_prop(instance.physical_network,a,:edge_id),f,f+1]
-            end
-        end
-        @constraint(my_model, outgoing  == z[s,f+1] - z[s,f])
-    end
-    #---------------------------------------------------
-    # FLOW - BETWEEN  NFSs AND TARGET AND ORIGIN NODES
-    #------------------------------------------------------
-    for s in 1:length(instance.setSlices), k in 1:length(instance.setSlices[s].set_commodities), u in 1: props(instance.physical_network)[:number_nodes]
-            
         ingoing_target= zero(AffExpr)
         outgoing_target = zero(AffExpr)
         ingoing_origin = zero(AffExpr)
@@ -227,33 +202,41 @@ function create_NSDP_model(instance::Instance, split_::String)
         conttt=0
         for a in edges(instance.physical_network)
             if src(a) == u
-               outgoing_target+= gamma[s,k,get_prop(instance.physical_network,a,:edge_id),instance.number_of_AN_based_NFs,length(instance.set_VNFs)+1]
+                outgoing_target+= gamma[s,k,get_prop(instance.physical_network,a,:edge_id),instance.number_of_AN_based_NFs,length(instance.set_VNFs)+1]
                outgoing_origin+= gamma[s,k,get_prop(instance.physical_network,a,:edge_id),length(instance.set_VNFs)+1,1]
-            end
-            if dst(a) == u
-                ingoing_target+= gamma[s,k,get_prop(instance.physical_network,a,:edge_id),instance.number_of_AN_based_NFs,length(instance.set_VNFs)+1] 
+               outgoing+= gamma[s,k,get_prop(instance.physical_network,a,:edge_id),f,f+1]
+            elseif dst(a) == u
+                ingoing_target+= gamma[s,k,get_prop(instance.physical_network,a,:edge_id),instance.number_of_AN_based_NFs,length(instance.set_VNFs)+1]
                 ingoing_origin+= gamma[s,k,get_prop(instance.physical_network,a,:edge_id),length(instance.set_VNFs)+1,1] 
+                ingoing+= gamma[s,k,get_prop(instance.physical_network,a,:edge_id),f,f+1]
             end
         end
+        if props(instance.physical_network, u)[:node_type] != "access"
+            @constraint(my_model, outgoing - ingoing == sum(x[s,f,m,u] for m in 1:instance.number_of_NFs) -sum(x[s,f+1,m,u] for m in 1:instance.number_of_NFs))
+        elseif u!=instance.setSlices[s].set_commodities[k]["origin_node"]
+            @constraint(my_model, outgoing - ingoing == 0)
+        else               
+             @constraint(my_model, outgoing  == z[s,f+1] - z[s,f])
+        end  
         if  u==instance.setSlices[s].set_commodities[k]["target_node"]
             @constraint(my_model, outgoing_target - ingoing_target == -1)
-        end
-        if  u==instance.setSlices[s].set_commodities[k]["origin_node"]
+            @constraint(my_model, outgoing_origin - ingoing_origin == 0)        
+        
+        elseif  u==instance.setSlices[s].set_commodities[k]["origin_node"]
             @constraint(my_model, outgoing_target - ingoing_target == 1-z[s,instance.number_of_AN_based_NFs])
             @constraint(my_model, outgoing_origin - ingoing_origin == z[s,1])
 
-        end
-        if   u!=instance.setSlices[s].set_commodities[k]["origin_node"] &&  props(instance.physical_network, u)[:node_type] == "access"
+        
+        elseif  props(instance.physical_network, u)[:node_type] == "non_access" 
+            @constraint(my_model, outgoing_target - ingoing_target == sum(x[s,instance.number_of_AN_based_NFs,m,u] for m in 1:instance.number_of_NFs))
+            @constraint(my_model, outgoing_origin - ingoing_origin == -sum(x[s,1,m,u] for m in 1:instance.number_of_NFs))
+        
+        else 
             @constraint(my_model, outgoing_target - ingoing_target == 0)
             @constraint(my_model, outgoing_origin - ingoing_origin == 0)
         end
-        if    props(instance.physical_network, u)[:node_type] == "non_access"
-            @constraint(my_model, outgoing_target - ingoing_target == sum(x[s,instance.number_of_AN_based_NFs,m,u] for m in 1:instance.number_of_NFs))
-            @constraint(my_model, outgoing_origin - ingoing_origin == -sum(x[s,1,m,u] for m in 1:instance.number_of_NFs))
-        end
-
     end
-
+                
     #---------------------------------------------
     # FLOW - BETWEEN CP NFSs
     #---------------------------------------------
@@ -263,10 +246,10 @@ function create_NSDP_model(instance::Instance, split_::String)
             outgoing = zero(AffExpr)
             for a in edges(instance.physical_network)
               if src(a) == u
-                   outgoing+= gamma[s,1,get_prop(instance.physical_network,a,:edge_id),f,g]          
+                   outgoing+= gamma[s,1,get_prop(instance.physical_network,a,:edge_id),f,g]         
                 end
                 if dst(a) == u
-                   ingoing+= gamma[s,1,get_prop(instance.physical_network,a,:edge_id),f,g]          
+                   ingoing+=gamma[s,1,get_prop(instance.physical_network,a,:edge_id),f,g]          
                 end
             end
             @constraint(my_model, outgoing - ingoing == sum(x[s,f,m,u] for m in 1:instance.number_of_NFs) - sum(x[s,g,m,u] for m in 1:instance.number_of_NFs))
@@ -285,7 +268,7 @@ function create_NSDP_model(instance::Instance, split_::String)
                    outgoing+= gamma[s,k,get_prop(instance.physical_network,a,:edge_id),f,g]          
                 end
                 if dst(a) == u
-                   ingoing+= gamma[s,k,get_prop(instance.physical_network,a,:edge_id),f,g]          
+                   ingoing+= gamma[s,k,get_prop(instance.physical_network,a,:edge_id),f,g]         
                 end
             end
             if props(instance.physical_network, u)[:node_type] == "non_access"           
@@ -306,10 +289,10 @@ function create_NSDP_model(instance::Instance, split_::String)
             outgoing = zero(AffExpr)
             for a in edges(instance.physical_network)
               if src(a) == u
-                   outgoing+= gamma[s,k,get_prop(instance.physical_network,a,:edge_id),f,g]          
+                   outgoing+= gamma[s,k,get_prop(instance.physical_network,a,:edge_id),f,g]         
                 end
                 if dst(a) == u
-                   ingoing+= gamma[s,k,get_prop(instance.physical_network,a,:edge_id),f,g]          
+                   ingoing+= gamma[s,k,get_prop(instance.physical_network,a,:edge_id),f,g]         
                 end
             end
             if props(instance.physical_network, u)[:node_type] == "non_access"           
@@ -321,7 +304,7 @@ function create_NSDP_model(instance::Instance, split_::String)
                  @constraint(my_model, outgoing - ingoing == 0)            
             end
         end
-    end         
+    end            
         
     #---------------------------------------------
     #  E2E DP LATENCY
@@ -347,18 +330,7 @@ function create_NSDP_model(instance::Instance, split_::String)
         @constraint(my_model, delay_path <= instance.maxLatencyBetweenFunctions[f][f+1])  
 
     end
-    #---------------------------------------------
-    # LATENCY BTW DU and NFS1
-    #---------------------------------------------                                           
-    for s in 1:length(instance.setSlices), k in 1:length(instance.setSlices[s].set_commodities)
-        delay_path = zero(AffExpr)
-        for a in edges(instance.physical_network)            
-                delay_path+= get_prop(instance.physical_network,a,:delay) * gamma[s,k,get_prop(instance.physical_network,a,:edge_id),length(instance.set_VNFs)+1,1]
-          end
-            
-         #@constraint(my_model, delay_path <= instance.maxLatencyBetweenDU_NFS1)  
-
-    end
+   
 
     #---------------------------------------------
     # LATENCY BTW CP NFSs
@@ -385,6 +357,7 @@ function create_NSDP_model(instance::Instance, split_::String)
             @constraint(my_model, delay_path <= instance.maxLatencyBetweenFunctions[f][g])  
         end
     end
+
 
    
     #---------------------------------------------
@@ -413,30 +386,39 @@ function create_NSDP_model(instance::Instance, split_::String)
 
             end
         end
-        @constraint(my_model, sum_gamma <= get_prop(instance.physical_network,a,:max_bandwidth))
+        if objf== "minNFS"                                
+            @constraint(my_model, sum_gamma <= get_prop(instance.physical_network,a,:max_bandwidth))
+        else                               
+            @variable(my_model, 0 <= U <= 1)
+            @constraint(my_model, sum_gamma <= U*get_prop(instance.physical_network,a,:max_bandwidth))                      
+        end
     end
 
     #-------------------------- objective-----------------------------------------
-    @objective(my_model, Min ,  0.1*sum(gamma[s,k,a,f,g] for s in 1:length(instance.setSlices),k in 1:length(instance.setSlices[s].set_commodities),a in 1: props(instance.physical_network)[:number_of_arcs],f in 1:length(instance.set_VNFs)+1, g in 1:length(instance.set_VNFs)+1) + 
-                                sum(y[f,m,u] for f in 1:length(instance.set_VNFs),  m in 1:instance.number_of_NFs, u in 1: props(instance.physical_network)[:number_nodes])) 
-                             
-    
+    if objf== "minNFS"
+        @objective(my_model, Min ,  0.001*sum(gamma[s,k,a,f,g] for s in 1:length(instance.setSlices),k in 1:length(instance.setSlices[s].set_commodities),a in 1: props(instance.physical_network)[:number_of_arcs],f in 1:length(instance.set_VNFs)+1, g in 1:length(instance.set_VNFs)+1) + 
+                                sum(y[f,m,u] for f in 1:length(instance.set_VNFs),  m in 1:instance.number_of_NFs, u in 1: props(instance.physical_network)[:number_nodes]))                    
+        else
+         @objective(my_model, Min, U) 
+    end
+                                            
     return my_model
+
 
 end
 
-function solve_NSDP_model(my_model::Model, policy::String,split_::Int64)
+function solve_NSDP_model(my_model::Model, log::String)
 
     #exporting CPLEX log
     JuMP.build(my_model)
     intm = internalmodel(my_model).inner
-    CPLEX.set_logfile(intm.env, joinpath(result_folder,"LOG_policy_$(policy)_option_$(split_)_of.txt"))
+    CPLEX.set_logfile(intm.env, joinpath(result_folder,"LOG_$(log).txt"))
     
     #calling solver
     solve(my_model)
 end
 
-function get_solution(my_model::Model, instance::Instance,folder::String,split_::Int64, pol::String)
+function get_solution(my_model::Model, instance::Instance,folder::String,objFO::String, varia::String,test::Int64)
   
 #-------------------- GETTING SOLUTION -----------------------------------      
     sol_z = getvalue(my_model[:z])
@@ -485,7 +467,7 @@ function get_solution(my_model::Model, instance::Instance,folder::String,split_:
     total_load = total_load/total_nodes_capacity
 
 
-  #-------------------- GETTING LINK LOAD  -----------------------------------      
+  #-------------------- GETTING LINK metrics  -----------------------------------      
     #auxiliary variables
     charge_arc = Array{Float64}(undef, props(instance.physical_network)[:number_of_arcs])
     total_arc_capacity = 0.0
@@ -506,7 +488,7 @@ function get_solution(my_model::Model, instance::Instance,folder::String,split_:
 
             charge_arc[edge_id] += sol_gamma[s,k,edge_id,instance.number_of_AN_based_NFs,length(instance.set_VNFs)+1]*instance.setSlices[s].set_commodities[k]["volume_of_data"]*instance.set_VNFs[instance.number_of_AN_based_NFs].compression
 
-            for f in 1:(instance.number_of_AN_based_NFs+instance.number_of_CN_based_NFs), g in 1:(instance.number_of_AN_based_NFs +instance.number_of_AN_based_NFs)
+            for f in 1:(instance.number_of_AN_based_NFs+instance.number_of_CN_based_NFs), g in 1:(instance.number_of_AN_based_NFs +instance.number_of_CN_based_NFs)
                 if f!=g 
                     if f<=instance.number_of_AN_based_NFs&&g<=instance.number_of_AN_based_NFs && sol_gamma[s,k,edge_id,f,g] >0.9
                     charge_arc[edge_id] += sol_gamma[s,k,edge_id,f,g]*instance.setSlices[s].set_commodities[k]["volume_of_data"]*instance.set_VNFs[f].compression
@@ -535,7 +517,18 @@ function get_solution(my_model::Model, instance::Instance,folder::String,split_:
         end
     end
     total_arc_load = total_arc_load/total_arc_capacity
-
+    avr_lat = 0.0            
+    lat = zeros(Float64, 4, 8)            
+    for s in 1:length(instance.setSlices), k in 1:length(instance.setSlices[s].set_commodities)
+          
+      lat[s,k] += sum(get_prop(instance.physical_network,a,:delay) *sol_gamma[s,k,get_prop(instance.physical_network,a,:edge_id),f,f+1] for f in 1:instance.number_of_AN_based_NFs-1,a in edges(instance.physical_network))
+      lat[s,k] += sum(get_prop(instance.physical_network,a,:delay)sol_gamma[s,k,get_prop(instance.physical_network,a,:edge_id),instance.number_of_AN_based_NFs,length(instance.set_VNFs)+1] for f in 1:instance.number_of_AN_based_NFs,a in edges(instance.physical_network))
+      lat[s,k] += sum(get_prop(instance.physical_network,a,:delay)sol_gamma[s,k,get_prop(instance.physical_network,a,:edge_id),length(instance.set_VNFs)+1,1] for f in 1:instance.number_of_AN_based_NFs,a in edges(instance.physical_network))
+    
+      end
+    for s in 1:length(instance.setSlices), k in 1:length(instance.setSlices[s].set_commodities)
+      avr_lat += lat[s,k]/32          
+    end          
 
 #-------------------- PRINTING -----------------------------------      
         
@@ -543,11 +536,9 @@ function get_solution(my_model::Model, instance::Instance,folder::String,split_:
         open(joinpath(result_folder,"final_statistics.csv"), "a") do io
             open(joinpath(result_folder,"load_on_nodes.csv"), "a") do ioo              
 
-                if split_ == 7
-                    write(io,"$(pol)OptionFlex;$(pol);flex;")
-                else
-                    write(io,"$(pol)Option$(split_);$(pol);$(split_);")
-                end
+          
+                 write(io,"mandala;minNFS;$(test);$(objFO)$(varia);$(objFO);$(varia);")
+                
 
 
                 write(io,"$(Objective_value);")   
@@ -573,15 +564,13 @@ function get_solution(my_model::Model, instance::Instance,folder::String,split_:
                 write(io,"$(total_arc_capacity);")
                 write(io,"$(total_arc_load);")
                 write(io,"$(ppa/number_active_links);")
-                write(io,"$(most_loaded_arc)\n")
+                write(io,"$(most_loaded_arc);")
+                write(io,"$(avr_lat)\n")
 
                 for u in 1:props(instance.physical_network)[:number_nodes]
                   node_type = props(instance.physical_network, u)[:node_type] 
-                    if split_ == 7
-                        write(ioo,"$(u);$(node_type);$(pol);flex;$(charge_node[u])\n")
-                    else
-                        write(ioo,"$(u);$(node_type);$(pol);$(split_);$(charge_node[u])\n")
-                    end
+                        write(ioo,"mandala;minNFS;$(test);$(u);$(node_type);$(objFO);$(varia);$(charge_node[u])\n")
+                    
                 end
 
 
@@ -599,33 +588,13 @@ function get_solution(my_model::Model, instance::Instance,folder::String,split_:
                     elseif props(instance.physical_network, dst(a))[:node_type] == "access" &&  props(instance.physical_network, src(a))[:node_type]  == "non_access"         
                         edge_type = "fronthaul"
                     end               
-                    if split_ == 7
-                        write(iooo,"$(edge_id);$(edge_type);$(pol);flex;$(charge_arc[edge_id])\n")
-                    else
-                        write(iooo,"$(edge_id);$(edge_type);$(pol);$(split_);$(charge_arc[edge_id])\n")
-                    end
+                        write(iooo,"mandala;minNFS;$(test);$(edge_id);$(edge_type);$(objFO);$(varia);$(charge_arc[edge_id])\n")
                 end
             end 
         end   
     end
 
-    if split_ == 7
-        open(joinpath(result_folder,"variables_policy_$(pol)_split_flex_.csv"), "w") do io
-            write(io,"z = $(sol_z)\n")
-            write(io,"x = $(sol_x)\n")  
-            write(io,"y = $(sol_y)\n")   
-            write(io,"w = $(sol_w)\n")   
-            write(io,"gamma = $(sol_gamma)")                                           
-        end
-    else
-        open(joinpath(result_folder,"variables_policy_$(pol)_split_$(split_)_.dat"), "w") do io
-            write(io,"z = $(sol_z)\n")
-            write(io,"x = $(sol_x)\n")  
-            write(io,"y = $(sol_y)\n")   
-            write(io,"w = $(sol_w)\n")   
-            write(io,"gamma = $(sol_gamma)")  
-        end
-    end
+    
                                                     
         
 end
