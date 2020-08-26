@@ -55,7 +55,8 @@ mutable struct Instance
         number_of_AN_based_NFs::Int16
         number_of_CN_based_NFs::Int16
         maxLatencyBetweenFunctions::Array{Any,1}
-        slice_cont::Array{Any,1}
+        slice_beta::Array{Any,1}
+        slice_rho::Array{Any,1}
         band_link_total::Float16
         maxLatencyBetweenDU_NFS1::Float16
         Instance(set_VNFs::Vector{VNF}, physical_network::MetaDiGraph, setSlices::Vector{SliceRequest}) =  new(set_VNFs,physical_network,setSlices)
