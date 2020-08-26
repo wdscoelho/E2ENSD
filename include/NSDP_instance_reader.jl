@@ -13,7 +13,7 @@ using DataStructures
 using NBInclude
 using LightGraphs 
 using MetaGraphs
-@nbinclude("NSDP_structures.ipynb")
+@nbinclude("NSDP_structures.jl")
 
 function get_Instance_pre(input_folder::String,mp::String)
     
