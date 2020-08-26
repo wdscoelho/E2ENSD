@@ -1,4 +1,5 @@
 
+
 function physical_net_mandala(number_nodes::Int64, folder::String) 
     count_node_id = 1
     count_arc_id = 1
@@ -61,7 +62,7 @@ function physical_net_mandala(number_nodes::Int64, folder::String)
                         incoming_arcs[target] = incoming_arcs[target]+1
                         adj_matrix[source,target] = true
                         adj_matrix[target,source] = true 
-                        latency = round(rand(50:200)/1000, digits=2)
+                        latency = round(rand(50:100)/1000, digits=2)
                         bandwidth = 202.5
                         write(io, "arc    $(count_arc_id)    edge_id $(count_arc_id) source $(trunc(Int,source)) target $(trunc(Int,target)) type fiber delay $(latency) max_bandwidth $(bandwidth) availability 0.999 cost 0.1\n\n")
                         count_arc_id=count_arc_id+1
@@ -94,7 +95,7 @@ function physical_net_mandala(number_nodes::Int64, folder::String)
                         incoming_arcs[target] = incoming_arcs[target]+1
                         adj_matrix[source,target] = true
                         adj_matrix[target,source] = true 
-                        latency = round(rand(50:200)/1000, digits=2)
+                        latency = round(rand(200:300)/1000, digits=2)
                         bandwidth = 202.5*2
                         write(io, "arc    $(count_arc_id)    edge_id $(count_arc_id) source $(trunc(Int,source)) target $(trunc(Int,target)) type fiber delay $(latency) max_bandwidth $(bandwidth) availability 0.999 cost 0.1\n\n")
                         count_arc_id=count_arc_id+1
@@ -127,7 +128,7 @@ function physical_net_mandala(number_nodes::Int64, folder::String)
                         incoming_arcs[target] = incoming_arcs[target]+1
                         adj_matrix[source,target] = true
                         adj_matrix[target,source] = true 
-                        latency = round(rand(50:200)/1000, digits=2)
+                        latency = round(rand(400:600)/1000, digits=2)
                         bandwidth = 202.5*3
                         write(io, "arc    $(count_arc_id)    edge_id $(count_arc_id) source $(trunc(Int,source)) target $(trunc(Int,target)) type fiber delay $(latency) max_bandwidth $(bandwidth) availability 0.999 cost 0.1\n\n")
                         count_arc_id=count_arc_id+1
@@ -158,9 +159,10 @@ function physical_net_mandala(number_nodes::Int64, folder::String)
 end
 
 
-function slice_requests_generator(number_nodes::Int64, folder::String, number_commodities::Int64, number_slices::Int64)
+
+function slice_requests_generator(number_nodes::Int64, folder::String, number_commodities::Int64, number_slices::Int64,test::Int64)
     for s in 1:number_slices
-        open(joinpath(folder,"commodities_$(s).dat"), "w") do io
+        open(joinpath(folder,"commodities_$(s)_test$(test).dat"), "w") do io
             write(io, "number_of_commodities $(trunc(Int,number_commodities))\n\n")
             for com in 1:number_commodities/2
                     if s == 1 || s == 5 || s == 9 || s == 13
@@ -176,24 +178,28 @@ function slice_requests_generator(number_nodes::Int64, folder::String, number_co
                         write(io, "commodity_id $(trunc(Int,com)) origin_node $(trunc(Int,com)) target_node $(trunc(Int,rand(number_nodes+number_nodes/4+number_nodes/4+1:number_nodes+number_nodes/4+number_nodes/4+number_nodes/8))) volume_of_data $(6*2)\n")
                     end
                 end
-            
+                
                 for com in (number_commodities/2 +1):number_commodities
+                    origin = trunc(Int,rand((number_commodities/2 +1):number_nodes))
+
                     if s == 1 || s == 5 || s == 9 || s == 13
-                        write(io, "commodity_id $(trunc(Int,com)) origin_node $(trunc(Int,rand((number_commodities/2 +1):number_nodes))) target_node $(trunc(Int,rand(number_nodes+number_nodes/4+number_nodes/4+1:number_nodes+number_nodes/4+number_nodes/4+number_nodes/8))) volume_of_data $(6*30)\n")
+                        write(io, "commodity_id $(trunc(Int,com)) origin_node $(origin) target_node $(trunc(Int,rand(number_nodes+number_nodes/4+number_nodes/4+1:number_nodes+number_nodes/4+number_nodes/4+number_nodes/8))) volume_of_data $(6*30)\n")
+                    elseif s == 2 || s == 6 || s == 10 || s == 14
+                        write(io, "commodity_id $(trunc(Int,com)) origin_node $(origin) target_node $(trunc(Int,rand(number_nodes+number_nodes/4+number_nodes/4+1:number_nodes+number_nodes/4+number_nodes/4+number_nodes/8))) volume_of_data $(6*1)\n")
+
+                    elseif s == 3 || s == 7 || s == 11 || s == 15
+                        write(io, "commodity_id $(trunc(Int,com)) origin_node $(origin) target_node $(trunc(Int,rand(number_nodes+number_nodes/4+number_nodes/4+1:number_nodes+number_nodes/4+number_nodes/4+number_nodes/8))) volume_of_data $(0.18*25)\n")
+
+                    elseif s == 4 || s == 8 || s == 12 || s == 16
+                        write(io, "commodity_id $(trunc(Int,com)) origin_node $(origin) target_node $(trunc(Int,rand(number_nodes+number_nodes/4+number_nodes/4+1:number_nodes+number_nodes/4+number_nodes/4+number_nodes/8))) volume_of_data $(6*2)\n")
                     end
-                    if s == 2 || s == 6 || s == 10 || s == 14
-                        write(io, "commodity_id $(trunc(Int,com)) origin_node $(trunc(Int,rand((number_commodities/2 +1):number_nodes))) target_node $(trunc(Int,rand(number_nodes+number_nodes/4+number_nodes/4+1:number_nodes+number_nodes/4+number_nodes/4+number_nodes/8))) volume_of_data $(6*1)\n")
-                    end
-                    if s == 3 || s == 7 || s == 11 || s == 15
-                        write(io, "commodity_id $(trunc(Int,com)) origin_node $(trunc(Int,rand((number_commodities/2 +1):number_nodes))) target_node $(trunc(Int,rand(number_nodes+number_nodes/4+number_nodes/4+1:number_nodes+number_nodes/4+number_nodes/4+number_nodes/8))) volume_of_data $(0.18*25)\n")
-                    end
-                    if s == 4 || s == 8 || s == 12 || s == 16
-                        write(io, "commodity_id $(trunc(Int,com)) origin_node $(trunc(Int,rand((number_commodities/2 +1):number_nodes))) target_node $(trunc(Int,rand(number_nodes+number_nodes/4+number_nodes/4+1:number_nodes+number_nodes/4+number_nodes/4+number_nodes/8))) volume_of_data $(6*2)\n")
-                    end
+                    
                 end
             
             end
         end
 end
+
+
 
 
