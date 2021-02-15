@@ -32,13 +32,13 @@ include(joinpath(include_folder,"NSDP_instance_reader.jl"))# file responsible fo
 
 
 #Defining instance size
-number_DUs = 16 #for mandala topology, it means total size = 13/8*number_DUs     
-number_request_per_slice=1
-number_slices=32
+#number_DUs = 16 #for mandala topology, it means total size = 13/8*number_DUs     
+#number_request_per_slice=1
+#number_slices=32
 
 #creating instances
-physical_net_mandala(number_DUs,input_folder) 
-slice_requests_generator(number_DUs, input_folder, number_request_per_slice, number_slices)
+#physical_net_mandala(number_DUs,input_folder) 
+#slice_requests_generator(number_DUs, input_folder, number_request_per_slice, number_slices)
 
 
 
