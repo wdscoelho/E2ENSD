@@ -39,9 +39,7 @@ number_slices=32
 #creating instances
 physical_net_mandala(number_DUs,input_folder) 
 slice_requests_generator(number_DUs, input_folder, number_request_per_slice, number_slices)
-for test in 1:10
-    slice_requests_generator(number_DUs, input_folder, number_request_per_slice, number_slices,test)
-end
+
 
 
 
