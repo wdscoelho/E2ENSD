@@ -28,6 +28,10 @@ function create_NSDP_variants_model(instance::Instance, varia::String,objf::Stri
     end
     #additional proposed split where only the NFS5 is installed at the CU. This split simulates a scenario where all RAN NFSs are installed locally while 
     #the data-plane NFs from core network are installed centrally
+    if split_ == "option_1"
+        for s in 1:length(instance.setSlices)
+            @constraint(my_model, z[s,5]==0)
+        end
     elseif split_ == "option_2"
         for s in 1:length(instance.setSlices)
             @constraint(my_model, z[s,5]==1)
