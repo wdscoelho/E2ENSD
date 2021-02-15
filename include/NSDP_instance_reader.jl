@@ -1,4 +1,3 @@
-
 ############################################################################################
 
 # Thesis title: Modeling and Optimization for 5G Network Design
@@ -13,15 +12,15 @@ using DataStructures
 using NBInclude
 using LightGraphs 
 using MetaGraphs
-include("NSDP_structures.jl")
+@nbinclude("NSDP_structures.ipynb")
 
-function get_Instance_pre(input_folder::String,mp::String)
+function get_Instance_pre(input_folder::String,topo::String,test::Int64,var::String)
     
    #Here, we get all proprities needed to represent the instance
         set,anf,cnf = get_VNFs(joinpath(input_folder,"VNFs_instance_1.dat"))
         instance = Instance(set,
-                            get_physical_network(joinpath(input_folder,"my_phyNetITC.dat")),
-                            get_NS_requests(joinpath(input_folder,"instance_$(mp)_pre.dat")))
+                            get_physical_network(joinpath(input_folder,"$(topo).dat")),
+                            get_NS_requests(joinpath(input_folder,"instance_flatSharing_pre.dat"),test,var))
 
         instance.VNF_connection = get_VNFs_To_Connect(instance)
         instance.number_of_AN_based_NFs = anf
@@ -38,13 +37,13 @@ function get_Instance_pre(input_folder::String,mp::String)
     
 end
 
-function get_Instance(input_folder::String,mp::String,test::Int64)
+function get_Instance(input_folder::String,topo::String,test::Int64,var::String)
     
    #Here, we get all proprities needed to represent the instance
         set,anf,cnf = get_VNFs(joinpath(input_folder,"VNFs_instance_1.dat"))
         instance = Instance(set,
-                            get_physical_network(joinpath(input_folder,"my_phyNetITC.dat")),
-                            get_NS_requests(joinpath(input_folder,"instance_$(mp).dat"),test))
+                            get_physical_network(joinpath(input_folder,"$(topo).dat")),
+                            get_NS_requests(joinpath(input_folder,"instance_flatSharing.dat"),test,var))
 
         instance.VNF_connection = get_VNFs_To_Connect(instance)
         instance.number_of_AN_based_NFs = anf
@@ -60,7 +59,7 @@ function get_Instance(input_folder::String,mp::String,test::Int64)
     
 end
 
-function get_NS_requests(file::String,test::Int64) 
+function get_NS_requests(file::String,test::Int64,var::String) 
     #Auxiliar variables
     setSlices = Vector{SliceRequest}()
    # We open a text file found on the recieved path "file::String"
@@ -89,7 +88,7 @@ function get_NS_requests(file::String,test::Int64)
                 push!(setSlices, SliceRequest(parse(Int8,aux_string[4]),parse(Int16,aux_string[10]),
                                          parse(Float16,aux_string[12]),VNFs_to_install_instance_name,Meta.parse(aux_string[18]),
                                          Meta.parse(aux_string[20]), get_VNF_sharing(Meta.parse(aux_string[20])),
-                                        aux_set_VNFs_to_install,get_commodities(Meta.parse(aux_string[22]),test), parse(Float16,aux_string[24]),get_node_sharing(Meta.parse(aux_string[26]))))
+                                        aux_set_VNFs_to_install,get_commodities(Meta.parse(aux_string[22]),test,var), parse(Float16,aux_string[24]),get_node_sharing(Meta.parse(aux_string[26]))))
            
                 end# end of conditions   
                
@@ -511,13 +510,17 @@ function get_VNFs_To_Connect(instance::Instance)
 end#end of function
 
 
-function get_commodities(file1::String,test::Int64) 
+function get_commodities(file1::String,test::Int64,var::String) 
     
     #auxiliar variables
     aux_vector = Vector{Dict}()
     number_of_commodities = Int16
     aux = split(file1,".dat")
-    file = "$(aux[1])_test$(test).dat"
+    if var == "NSDP" 
+        file = "$(aux[1])_test$(test)a.dat"
+    else
+        file = "$(aux[1])_test$(test).dat"
+    end
    # We open a text file found on the recieved path "file::String"
     open(file) do file
         
