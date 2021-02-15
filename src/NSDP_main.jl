@@ -61,27 +61,25 @@ end
 
 #------------------- TESTS ---------------------------------
 my_instance = 0
-OFs = ["minNFS"]
-variants = ["NDSP"]
-sharing_policies = ["hard","flatSharing","sharedCP","sharedDP","partialCP","partialDP"]
-sharing_policies = ["partialCP","partialDP"]
-
-splits = [1,2,3,4,5,6,7]
-for test in 1:10, of in OFs, var in variants, sh in sharing_policies, split in splits
-#getting all proprities needed to represent the instance
-    my_instance = 0
-    if var == "NDSP"
-        my_instance = get_Instance(input_folder,sh,test)
+OFs = ["minLinkLoad","minNFS"]
+variants = ["NSDP","NSDP-ISFS","NSDP-ISSC"]
+toplogies = ["Tree","Sun","Mandala"]
+splits = [7]
+for test in 1:10, var in variants,  of in OFs, topo in toplogies
+    #getting all proprities needed to represent the instance
+    if var == "NSDP"
+        my_instance = get_Instance(input_folder,topo,test,var)
     else
-        my_instance = get_Instance_pre(input_folder,"flatSharing")
+        my_instance = get_Instance_pre(input_folder,topo,test,var)
     end
     #creating model
-    model = create_NSDP_variants_model(my_instance, var,of, "option_$split")
+    model = create_NSDP_variants_model(my_instance, var,of)
     #calling solver 
-    solve_NSDP_model(model,"test$(test)_of$(of)_var$(var)_sh$(sh)_split$(split)")
-        
+    solve_NSDP_model(model,"test$(test)_of$(of)_var$(var)_topo$(topo)")
+
     #getting and saving final solution and information
-    get_solution(model,my_instance,result_folder,sh,"split$split",test)
+    get_solution(model,my_instance,result_folder,of,var,test,topo)
     my_instance = 0
     model = 0
+    
 end
