@@ -21,10 +21,10 @@ result_folder = "../Results/"
 
 
 #including files
-@nbinclude(joinpath(include_folder,"NSDP_instance_generator.jl"))# code creator for 5GNSD instances
-@nbinclude(joinpath(include_folder,"NSDP_structures.jl")) # our data structures 
-@nbinclude(joinpath(include_folder,"NSDP_solver.jl")) # impementation of our model 
-@nbinclude(joinpath(include_folder,"NSDP_instance_reader.jl"))# file responsible for parseing new NSDP instances
+include(joinpath(include_folder,"NSDP_instance_generator.jl"))# code creator for 5GNSD instances
+include(joinpath(include_folder,"NSDP_structures.jl")) # our data structures 
+include(joinpath(include_folder,"NSDP_solver.jl")) # impementation of our model 
+include(joinpath(include_folder,"NSDP_instance_reader.jl"))# file responsible for parseing new NSDP instances
 
 
 
