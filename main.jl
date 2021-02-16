@@ -26,7 +26,7 @@ result_folder = "Results/"
 
 #including files
 include(joinpath(include_folder,"NSDP_instance_generator.jl"))# code creator for 5GNSD instances
-include(joinpath(include_folder,"NSDP_structures.j")) # our data structures 
+include(joinpath(include_folder,"NSDP_structures.jl")) # our data structures 
 include(joinpath(include_folder,"NSDP_solver.jl")) # impementation of our model 
 include(joinpath(include_folder,"NSDP_instance_reader.jl"))# file responsible for parseing new NSDP instances
 
