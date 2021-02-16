@@ -169,7 +169,7 @@ function slice_requests_generator(number_nodes::Int64, folder::String, number_co
             ver = true
             while ver ==true
                 du = trunc(Int,rand(1:number_nodes))
-                if (du âˆˆ dus) == false
+                if (du in dus) == false
                     push!(dus,du) 
                     ver = false  
                 end
