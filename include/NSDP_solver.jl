@@ -1,5 +1,5 @@
 
-using JuMP,CPLEX,MathProgBase
+using JuMP,CPLEX,MathProgBase,GLPK,Clp
 using NBInclude,GraphIO
 using LightGraphs, MetaGraphs,LightGraphsFlows
 
@@ -10,7 +10,8 @@ end
 
 function create_NSDP_variants_model(instance::Instance, varia::String,objf::String, split_::String)
     my_model = Model(solver=CplexSolver())
-
+    #my_model = Model(solver=ClpSolver())
+   # my_model = Model(solver=GLPKSolver())
     @variable(my_model, z[s in 1:length(instance.setSlices),f in 1:instance.number_of_AN_based_NFs],Bin)
     @variable(my_model, x[s in 1:length(instance.setSlices),f in 1:length(instance.set_VNFs), m in 1:instance.number_of_NFs, u in 1: props(instance.physical_network)[:number_nodes]], Bin)
     @variable(my_model, w[s in 1:length(instance.setSlices),f in 1:length(instance.set_VNFs), m in 1:instance.number_of_NFs, u in 1: props(instance.physical_network)[:number_nodes]] >= 0)
