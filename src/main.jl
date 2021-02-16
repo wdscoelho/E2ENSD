@@ -18,9 +18,9 @@ using MetaGraphs #Package to construct complex graphs",
 
 
 # path to some folders
-input_folder = "inputs/"
-include_folder = "include/"
-result_folder = "Results/" 
+input_folder = "../inputs/"
+include_folder = "../include/"
+result_folder = "../Results/" 
 
 
 
