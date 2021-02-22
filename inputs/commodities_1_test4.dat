@@ -1,0 +1,3 @@
+number_of_commodities 1
+
+commodity_id 1 origin_node 2 target_node 25 volume_of_data 180.0
