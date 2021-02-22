@@ -62,7 +62,7 @@ my_instance = 0
 OFs = ["minLinkLoad","minNFS"]
 variants = ["NSDP","NSDP-ISFS","NSDP-ISSC"]
 toplogies = ["Tree","Sun","Mandala"]
-splits = [7]
+splits = ["7"]
 for test in 1:10, var in variants,  of in OFs, topo in toplogies
     #getting all proprities needed to represent the instance
     if var == "NSDP"
@@ -71,7 +71,7 @@ for test in 1:10, var in variants,  of in OFs, topo in toplogies
         my_instance = get_Instance_pre(input_folder,topo,test,var)
     end
     #creating model
-    model = create_NSDP_variants_model(my_instance, var,of)
+    model = create_NSDP_variants_model(my_instance, var,of, splits[1])
     #calling solver 
     solve_NSDP_model(model,"test$(test)_of$(of)_var$(var)_topo$(topo)")
 
